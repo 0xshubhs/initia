@@ -1,0 +1,26 @@
+{
+  "project_name": "InitiaBet",
+  "description": "Provably fair on-chain gaming casino built as an Initia EVM appchain. Features CoinFlip, DiceRoll, and CrashGame with session key auto-signing, .init usernames for player identity, and Interwoven Bridge for deposits. Every bet is a transaction, every transaction is revenue.",
+  "track": "Gaming",
+  "chain_id": "",
+  "vm": "EVM",
+  "team": [],
+  "tech_stack": [
+    "Solidity 0.8.24",
+    "Foundry",
+    "React 19",
+    "TypeScript",
+    "Vite",
+    "@initia/interwovenkit-react",
+    "TailwindCSS",
+    "MiniEVM"
+  ],
+  "initia_features": [
+    "auto-signing-session-ux",
+    "interwoven-bridge",
+    "initia-usernames"
+  ],
+  "contracts": {},
+  "demo_video": "",
+  "repository": ""
+}
