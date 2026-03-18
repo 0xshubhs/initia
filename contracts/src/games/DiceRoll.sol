@@ -78,7 +78,7 @@ contract DiceRoll is Ownable2Step, ReentrancyGuard {
     FeeCollector public immutable feeCollector;
     Leaderboard public immutable leaderboard;
 
-    uint256 public nextBetId;
+    uint256 public nextBetId = 1;
     mapping(uint256 => Bet) public bets;
     mapping(uint256 => uint256) public commitToBet;
     bool public paused;
@@ -185,7 +185,7 @@ contract DiceRoll is Ownable2Step, ReentrancyGuard {
         uint256 chosenNumber,
         bytes32 playerCommitHash
     ) external nonReentrant returns (uint256 betId) {
-        address player = sessionManager.useSession(sessionId, address(this), amount);
+        address player = sessionManager.useSession(sessionId, msg.sender, address(this), amount);
         return _placeBet(player, amount, chosenNumber, playerCommitHash);
     }
 

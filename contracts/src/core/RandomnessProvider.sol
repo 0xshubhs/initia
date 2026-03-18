@@ -82,6 +82,13 @@ contract RandomnessProvider is Ownable2Step {
     error RevealTimeoutNotReached(uint256 commitId);
     error InvalidPlayerSeed(uint256 commitId);
     error ZeroAddress();
+    error InvalidTimeout(uint256 timeout);
+
+    /// @notice Minimum reveal timeout (30 seconds)
+    uint256 public constant MIN_REVEAL_TIMEOUT = 30;
+
+    /// @notice Maximum reveal timeout (1 hour)
+    uint256 public constant MAX_REVEAL_TIMEOUT = 3600;
 
     // ──────────────────────────────────────────────
     // Modifiers
@@ -105,6 +112,9 @@ contract RandomnessProvider is Ownable2Step {
     /// @param _revealTimeout Timeout in seconds for the house to reveal
     constructor(address _houseOperator, uint256 _revealTimeout) Ownable(msg.sender) {
         if (_houseOperator == address(0)) revert ZeroAddress();
+        if (_revealTimeout < MIN_REVEAL_TIMEOUT || _revealTimeout > MAX_REVEAL_TIMEOUT) {
+            revert InvalidTimeout(_revealTimeout);
+        }
         houseOperator = _houseOperator;
         revealTimeout = _revealTimeout;
     }
@@ -123,6 +133,9 @@ contract RandomnessProvider is Ownable2Step {
 
     /// @notice Update the reveal timeout
     function setRevealTimeout(uint256 _timeout) external onlyOwner {
+        if (_timeout < MIN_REVEAL_TIMEOUT || _timeout > MAX_REVEAL_TIMEOUT) {
+            revert InvalidTimeout(_timeout);
+        }
         uint256 old = revealTimeout;
         revealTimeout = _timeout;
         emit RevealTimeoutUpdated(old, _timeout);

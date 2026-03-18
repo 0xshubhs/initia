@@ -122,7 +122,7 @@ contract CoinFlipTest is Test {
 
         vm.prank(player);
         vm.expectEmit(true, true, false, false);
-        emit CoinFlip.BetPlaced(0, player, 995e18, CoinFlip.Choice.Heads, 0);
+        emit CoinFlip.BetPlaced(1, player, 995e18, CoinFlip.Choice.Heads, 0);
         coinFlip.placeBet(1_000e18, CoinFlip.Choice.Heads, commitHash);
     }
 
@@ -158,6 +158,7 @@ contract CoinFlipTest is Test {
         bytes32 serverSeed = bytes32(uint256(99));
 
         // Pre-compute result to find a winning server seed for Heads
+        // commitId is 0 (RandomnessProvider starts at 0)
         bytes32 resultHash = keccak256(abi.encodePacked(playerSeed, serverSeed, uint256(0)));
         uint256 result = uint256(resultHash) % 2;
         CoinFlip.Choice expectedChoice = CoinFlip.Choice(result);

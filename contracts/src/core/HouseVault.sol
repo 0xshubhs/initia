@@ -15,6 +15,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 ///         Authorized game contracts can request payouts from the vault.
 ///         Profit/loss is socialized across all LP share holders.
 /// @dev Max bet is capped at 2% of total bankroll to prevent catastrophic loss.
+///      Uses virtual shares/assets offset to mitigate ERC4626 inflation attacks.
 contract HouseVault is ERC4626, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using Math for uint256;
@@ -226,12 +227,20 @@ contract HouseVault is ERC4626, Ownable2Step, ReentrancyGuard {
     // Internal
     // ──────────────────────────────────────────────
 
-    /// @dev Advance epoch if enough time has passed
+    /// @dev Use a decimal offset of 3 to mitigate ERC4626 inflation/first-depositor attacks.
+    ///      This adds virtual shares and assets (1e3) making share price manipulation
+    ///      economically infeasible. See OpenZeppelin ERC4626 security docs.
+    function _decimalsOffset() internal pure override returns (uint8) {
+        return 3;
+    }
+
+    /// @dev Advance epoch if enough time has passed.
+    ///      Uses additive advancement to prevent temporal drift.
     function _advanceEpochIfNeeded() internal {
-        if (block.timestamp >= epochStartTime + EPOCH_DURATION) {
+        while (block.timestamp >= epochStartTime + EPOCH_DURATION) {
             emit EpochAdvanced(currentEpoch, epochPnL[currentEpoch]);
             currentEpoch++;
-            epochStartTime = block.timestamp;
+            epochStartTime += EPOCH_DURATION;
         }
     }
 

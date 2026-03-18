@@ -49,6 +49,13 @@ contract CrashGame is Ownable2Step, ReentrancyGuard {
     /// @notice Maximum players per round
     uint256 public constant MAX_PLAYERS_PER_ROUND = 100;
 
+    /// @notice Maximum cash-out multiplier in BPS (100x = 1_000_000 BPS)
+    /// @dev Caps the maximum possible payout to prevent vault drainage
+    uint256 public constant MAX_CASHOUT_MULTIPLIER_BPS = 1_000_000;
+
+    /// @notice Timeout for a running round (operator must crash within this window)
+    uint256 public constant ROUND_TIMEOUT = 1 hours;
+
     // ──────────────────────────────────────────────
     // Types
     // ──────────────────────────────────────────────
@@ -145,6 +152,9 @@ contract CrashGame is Ownable2Step, ReentrancyGuard {
     error BetTooLarge(uint256 amount, uint256 max);
     error TooManyPlayers(uint256 roundId);
     error InvalidCashOutMultiplier();
+    error CashOutMultiplierTooHigh(uint256 requested, uint256 max);
+    error RoundNotTimedOut(uint256 roundId);
+    error RoundTimedOut(uint256 roundId);
 
     // ──────────────────────────────────────────────
     // Modifiers
@@ -250,6 +260,9 @@ contract CrashGame is Ownable2Step, ReentrancyGuard {
         if (round.status != RoundStatus.Running) {
             revert RoundNotInStatus(roundId, RoundStatus.Running, round.status);
         }
+        if (block.timestamp >= round.startTime + ROUND_TIMEOUT) {
+            revert RoundTimedOut(roundId);
+        }
 
         // Verify server seed
         if (keccak256(abi.encodePacked(serverSeed)) != round.serverCommitHash) {
@@ -309,6 +322,33 @@ contract CrashGame is Ownable2Step, ReentrancyGuard {
         emit RoundCancelled(roundId);
     }
 
+    /// @notice Claim refund if the operator failed to crash a running round within ROUND_TIMEOUT.
+    ///         Can be called by anyone. Refunds all player bets.
+    /// @param roundId The round that timed out
+    function claimRoundTimeout(uint256 roundId) external nonReentrant {
+        Round storage round = rounds[roundId];
+        if (round.status != RoundStatus.Running) {
+            revert RoundNotInStatus(roundId, RoundStatus.Running, round.status);
+        }
+        if (block.timestamp < round.startTime + ROUND_TIMEOUT) {
+            revert RoundNotTimedOut(roundId);
+        }
+
+        round.status = RoundStatus.Cancelled;
+
+        // Refund all bets
+        uint256 count = round.playerCount;
+        for (uint256 i = 0; i < count; i++) {
+            PlayerBet storage pb = roundBets[roundId][i];
+            if (pb.amount > 0) {
+                pb.payout = pb.amount;
+                vault.sendPayout(pb.player, pb.amount);
+            }
+        }
+
+        emit RoundCancelled(roundId);
+    }
+
     // ──────────────────────────────────────────────
     // Player functions
     // ──────────────────────────────────────────────
@@ -322,7 +362,7 @@ contract CrashGame is Ownable2Step, ReentrancyGuard {
 
     /// @notice Place a bet using a session key
     function placeBetWithSession(uint256 roundId, uint256 sessionId, uint256 amount) external nonReentrant {
-        address player = sessionManager.useSession(sessionId, address(this), amount);
+        address player = sessionManager.useSession(sessionId, msg.sender, address(this), amount);
         _placeBet(roundId, player, amount);
     }
 
@@ -336,6 +376,7 @@ contract CrashGame is Ownable2Step, ReentrancyGuard {
             revert RoundNotInStatus(roundId, RoundStatus.Running, round.status);
         }
         if (multiplierBps < MIN_CRASH_BPS) revert InvalidCashOutMultiplier();
+        if (multiplierBps > MAX_CASHOUT_MULTIPLIER_BPS) revert CashOutMultiplierTooHigh(multiplierBps, MAX_CASHOUT_MULTIPLIER_BPS);
 
         uint256 idx = playerBetIndex[roundId][msg.sender];
         if (idx == 0) revert NoBetFound(roundId, msg.sender);

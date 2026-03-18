@@ -71,8 +71,8 @@ contract CoinFlip is Ownable2Step, ReentrancyGuard {
     FeeCollector public immutable feeCollector;
     Leaderboard public immutable leaderboard;
 
-    /// @notice Next bet ID
-    uint256 public nextBetId;
+    /// @notice Next bet ID (starts at 1 to avoid default mapping value collision)
+    uint256 public nextBetId = 1;
 
     /// @notice Bet data
     mapping(uint256 => Bet) public bets;
@@ -210,8 +210,8 @@ contract CoinFlip is Ownable2Step, ReentrancyGuard {
         uint256 maxBetAmount = vault.maxBet();
         if (amount > maxBetAmount) revert BetTooLarge(amount, maxBetAmount);
 
-        // Validate session and get the actual player
-        address player = sessionManager.useSession(sessionId, address(this), amount);
+        // Validate session and get the actual player (msg.sender must be the delegate)
+        address player = sessionManager.useSession(sessionId, msg.sender, address(this), amount);
 
         uint256 fee = feeCollector.calculateFee(amount);
         uint256 netBet = amount - fee;

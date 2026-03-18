@@ -168,12 +168,14 @@ contract SessionManager is Ownable2Step {
     /// @notice Validate and record a bet using a session key.
     ///         Called by game contracts.
     /// @param sessionId The session ID to use
+    /// @param delegate The delegate address (must match session delegate; typically tx.origin)
     /// @param game The game contract address (should be msg.sender in the game)
     /// @param amount The bet amount
     /// @return owner The session owner (the actual player)
-    function useSession(uint256 sessionId, address game, uint256 amount) external returns (address owner) {
+    function useSession(uint256 sessionId, address delegate, address game, uint256 amount) external returns (address owner) {
         Session storage session = sessions[sessionId];
         if (session.owner == address(0)) revert SessionNotFound();
+        if (session.delegate != delegate) revert NotSessionDelegate();
         if (session.revoked) revert SessionRevoked_();
         if (block.timestamp >= session.expiresAt) revert SessionExpired(sessionId);
         if (!sessionAllowedGames[sessionId][game]) revert GameNotAllowed(game);
