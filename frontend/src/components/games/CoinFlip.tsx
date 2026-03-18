@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAccount, useBalance } from 'wagmi'
 import { useGame } from '@/hooks/useGame'
 import BetInput from '@/components/shared/BetInput'
 import GameResult from '@/components/shared/GameResult'
@@ -16,6 +17,11 @@ export default function CoinFlip() {
   const [coinFlipping, setCoinFlipping] = useState(false)
   const [coinResult, setCoinResult] = useState<'heads' | 'tails' | null>(null)
 
+  const { address, isConnected } = useAccount()
+  const { data: balanceData } = useBalance({ address })
+
+  const walletBalance = balanceData?.value ?? BigInt(0)
+
   const { status, txState, txHash, lastResult, results, isPlaying, placeBet, reset } = useGame({
     gameType: 'coinflip',
   })
@@ -26,17 +32,24 @@ export default function CoinFlip() {
     setCoinFlipping(true)
     setCoinResult(null)
 
-    const result = await placeBet({
-      amount: betAmount,
-      chooseHeads: selectedSide === 'heads',
-    })
+    try {
+      const result = await placeBet({
+        amount: betAmount,
+        chooseHeads: selectedSide === 'heads',
+      })
 
-    setCoinResult(result.outcome as 'heads' | 'tails')
-    setCoinFlipping(false)
+      if (result.outcome === 'heads' || result.outcome === 'tails') {
+        setCoinResult(result.outcome)
+      }
+    } catch {
+      // Error is handled by the useGame hook via txState
+    } finally {
+      setCoinFlipping(false)
+    }
   }, [selectedSide, isPlaying, betAmount, placeBet])
 
+  const isApproving = status === 'approving'
   const potentialPayout = (betAmount * BigInt(196)) / BigInt(100)
-
   const recentDots = results.slice(0, 10)
 
   return (
@@ -131,7 +144,7 @@ export default function CoinFlip() {
               value={betAmount}
               onChange={setBetAmount}
               disabled={isPlaying}
-              maxBalance={BigInt('100000000000000000000')}
+              maxBalance={walletBalance}
             />
 
             <div className="flex items-center justify-between px-1">
@@ -151,31 +164,45 @@ export default function CoinFlip() {
 
             <TxStatus state={txState} hash={txHash} />
 
-            <motion.button
-              whileHover={{ scale: selectedSide && !isPlaying ? 1.02 : 1 }}
-              whileTap={{ scale: selectedSide && !isPlaying ? 0.98 : 1 }}
-              onClick={handleFlip}
-              disabled={!selectedSide || isPlaying}
-              className={cn(
-                'w-full py-4 rounded-xl font-mono text-lg font-bold transition-all duration-200',
-                selectedSide && !isPlaying
-                  ? 'bg-amber text-bg hover:bg-amber-light btn-glow cursor-pointer'
-                  : 'bg-border text-text-dim cursor-not-allowed',
-              )}
-            >
-              {isPlaying ? (
-                <motion.span
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                >
-                  FLIPPING...
-                </motion.span>
-              ) : !selectedSide ? (
-                'SELECT A SIDE'
-              ) : (
-                `FLIP ${selectedSide.toUpperCase()}`
-              )}
-            </motion.button>
+            {!isConnected ? (
+              <div className="w-full py-4 rounded-xl font-mono text-lg font-bold text-center
+                              bg-surface border-2 border-dashed border-amber-dim text-amber-dim">
+                Connect wallet to play
+              </div>
+            ) : (
+              <motion.button
+                whileHover={{ scale: selectedSide && !isPlaying ? 1.02 : 1 }}
+                whileTap={{ scale: selectedSide && !isPlaying ? 0.98 : 1 }}
+                onClick={handleFlip}
+                disabled={!selectedSide || isPlaying}
+                className={cn(
+                  'w-full py-4 rounded-xl font-mono text-lg font-bold transition-all duration-200',
+                  selectedSide && !isPlaying
+                    ? 'bg-amber text-bg hover:bg-amber-light btn-glow cursor-pointer'
+                    : 'bg-border text-text-dim cursor-not-allowed',
+                )}
+              >
+                {isApproving ? (
+                  <motion.span
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    APPROVING...
+                  </motion.span>
+                ) : isPlaying ? (
+                  <motion.span
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    FLIPPING...
+                  </motion.span>
+                ) : !selectedSide ? (
+                  'SELECT A SIDE'
+                ) : (
+                  `FLIP ${selectedSide.toUpperCase()}`
+                )}
+              </motion.button>
+            )}
           </div>
         </div>
 

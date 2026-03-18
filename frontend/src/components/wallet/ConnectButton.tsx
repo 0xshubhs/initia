@@ -1,35 +1,59 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { shortenAddress } from '@/lib/utils'
+import { useAccount, useConnect, useDisconnect, useBalance } from 'wagmi'
+import { injected } from 'wagmi/connectors'
+import { shortenAddress, formatTokenAmount } from '@/lib/utils'
 
 interface ConnectButtonProps {
   compact?: boolean
 }
 
 export default function ConnectButton({ compact = false }: ConnectButtonProps) {
-  const [isConnected, setIsConnected] = useState(false)
-  const [address, setAddress] = useState<string | null>(null)
-  const [username, setUsername] = useState<string | null>(null)
-  const [isConnecting, setIsConnecting] = useState(false)
-  const [showMenu, setShowMenu] = useState(false)
+  const { address, isConnected, isConnecting } = useAccount()
+  const { connect } = useConnect()
+  const { disconnect } = useDisconnect()
+  const { data: balanceData } = useBalance({ address })
 
-  const handleConnect = async () => {
-    setIsConnecting(true)
-    await new Promise(r => setTimeout(r, 1000))
-    setAddress('0x7a16fF8270133F063aAb6C9977183D9e72835428')
-    setUsername('player.init')
-    setIsConnected(true)
-    setIsConnecting(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const handleClickOutside = useCallback((e: MouseEvent) => {
+    if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      setShowMenu(false)
+    }
+  }, [])
+
+  const handleEscape = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') setShowMenu(false)
+  }, [])
+
+  useEffect(() => {
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleEscape)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('keydown', handleEscape)
+      }
+    }
+  }, [showMenu, handleClickOutside, handleEscape])
+
+  const handleConnect = () => {
+    connect({ connector: injected() })
   }
 
   const handleDisconnect = () => {
-    setAddress(null)
-    setUsername(null)
-    setIsConnected(false)
+    disconnect()
     setShowMenu(false)
   }
+
+  const displayName = address ? shortenAddress(address) : ''
+  const formattedBalance = balanceData
+    ? formatTokenAmount(balanceData.value, balanceData.decimals)
+    : '0'
+  const balanceSymbol = balanceData?.symbol ?? 'INIT'
 
   if (!isConnected) {
     return (
@@ -38,6 +62,7 @@ export default function ConnectButton({ compact = false }: ConnectButtonProps) {
         whileTap={{ scale: 0.98 }}
         onClick={handleConnect}
         disabled={isConnecting}
+        aria-label={isConnecting ? 'Connecting wallet' : 'Connect wallet'}
         className="btn-glow relative px-5 py-2.5 rounded-lg font-mono text-sm font-semibold
                    bg-amber text-bg
                    hover:bg-amber-light
@@ -71,14 +96,14 @@ export default function ConnectButton({ compact = false }: ConnectButtonProps) {
       >
         <div className="w-2 h-2 rounded-full bg-green animate-pulse" />
         <span className="text-amber text-sm font-mono">
-          {username || shortenAddress(address || '')}
+          {displayName}
         </span>
       </button>
     )
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <motion.button
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
@@ -90,11 +115,9 @@ export default function ConnectButton({ compact = false }: ConnectButtonProps) {
       >
         <div className="w-2 h-2 rounded-full bg-green animate-pulse" />
         <div className="text-left">
-          {username && (
-            <p className="text-amber text-sm font-semibold crt-glow">{username}</p>
-          )}
+          <p className="text-amber text-sm font-semibold crt-glow">{displayName}</p>
           <p className="text-text-secondary text-xs font-mono">
-            {shortenAddress(address || '')}
+            {formattedBalance} {balanceSymbol}
           </p>
         </div>
         <svg
@@ -118,18 +141,13 @@ export default function ConnectButton({ compact = false }: ConnectButtonProps) {
         >
           <div className="px-4 py-2 border-b border-border">
             <p className="text-xs text-text-secondary">Connected as</p>
-            <p className="text-sm text-amber font-mono">{username || shortenAddress(address || '')}</p>
+            <p className="text-sm text-amber font-mono">{displayName}</p>
           </div>
 
-          <button
-            onClick={() => {
-              setShowMenu(false)
-            }}
-            className="w-full px-4 py-2 text-left text-sm text-text
-                       hover:bg-surface-hover transition-colors"
-          >
-            Bridge Assets
-          </button>
+          <div className="px-4 py-2 border-b border-border">
+            <p className="text-xs text-text-secondary">Balance</p>
+            <p className="text-sm text-text font-mono">{formattedBalance} {balanceSymbol}</p>
+          </div>
 
           <button
             onClick={() => {

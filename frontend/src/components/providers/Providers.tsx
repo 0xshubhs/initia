@@ -1,23 +1,28 @@
 'use client'
 
-import { type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { WagmiProvider } from 'wagmi'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { wagmiConfig } from '@/config/wagmi'
 
-/**
- * Client-side providers wrapper.
- *
- * When @initia/interwovenkit-react is installed and configured,
- * wrap children with InterwovenKitProvider:
- *
- *   import { InterwovenKitProvider } from '@initia/interwovenkit-react'
- *
- *   export default function Providers({ children }: { children: ReactNode }) {
- *     return (
- *       <InterwovenKitProvider networkType="testnet">
- *         {children}
- *       </InterwovenKitProvider>
- *     )
- *   }
- */
 export default function Providers({ children }: { children: ReactNode }) {
-  return <>{children}</>
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 5_000,
+            refetchOnWindowFocus: false,
+          },
+        },
+      }),
+  )
+
+  return (
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    </WagmiProvider>
+  )
 }

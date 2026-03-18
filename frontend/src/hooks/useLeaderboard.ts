@@ -1,41 +1,9 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
+import { useReadContract } from 'wagmi'
 import type { LeaderboardEntry, LeaderboardPeriod } from '@/types'
-
-const MOCK_NAMES = [
-  'whale.init', 'degen.init', 'lucky7.init', 'moonshot.init',
-  'diamondhands.init', 'flipmaster.init', 'rollking.init', 'crash_lord.init',
-  'init_guru.init', 'based.init', 'nfa.init', 'gm.init',
-  'wagmi.init', 'chad.init', 'alpha.init', 'sigma.init',
-  'zero.init', 'maxi.init', 'anon.init', 'builder.init',
-]
-
-function generateMockEntry(rank: number, period: LeaderboardPeriod): LeaderboardEntry {
-  const multiplier = period === 'all' ? 100 : period === 'weekly' ? 10 : 1
-  const baseWagered = (Math.random() * 500 + 50) * multiplier
-  const pnl = (Math.random() - 0.45) * baseWagered * 0.3
-  const totalWon = pnl > 0 ? baseWagered * 0.5 + pnl : baseWagered * 0.4
-  const totalLost = baseWagered - totalWon
-
-  return {
-    rank,
-    address: `0x${Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
-    username: Math.random() > 0.2 ? MOCK_NAMES[Math.floor(Math.random() * MOCK_NAMES.length)] : null,
-    totalWagered: BigInt(Math.floor(baseWagered * 1e18)),
-    totalWon: BigInt(Math.floor(totalWon * 1e18)),
-    totalLost: BigInt(Math.floor(totalLost * 1e18)),
-    pnl: BigInt(Math.floor(pnl * 1e18)),
-    gamesPlayed: Math.floor(Math.random() * 500 * multiplier) + 10,
-    winRate: Math.random() * 30 + 35,
-  }
-}
-
-function generateLeaderboard(period: LeaderboardPeriod): LeaderboardEntry[] {
-  return Array.from({ length: 25 }, (_, i) => generateMockEntry(i + 1, period))
-    .sort((a, b) => Number(b.pnl - a.pnl))
-    .map((entry, i) => ({ ...entry, rank: i + 1 }))
-}
+import { CONTRACT_ADDRESSES, LEADERBOARD_ABI } from '@/config/contracts'
 
 interface UseLeaderboardReturn {
   entries: LeaderboardEntry[]
@@ -45,28 +13,75 @@ interface UseLeaderboardReturn {
   refresh: () => void
 }
 
+interface PlayerStats {
+  totalWagered: bigint
+  totalWon: bigint
+  totalLost: bigint
+  biggestWin: bigint
+  gamesPlayed: bigint
+  gamesWon: bigint
+}
+
 export function useLeaderboard(): UseLeaderboardReturn {
   const [period, setPeriod] = useState<LeaderboardPeriod>('all')
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([])
-  const [isLoading, setIsLoading] = useState(true)
 
-  const loadData = useCallback((p: LeaderboardPeriod) => {
-    setIsLoading(true)
-    setTimeout(() => {
-      setEntries(generateLeaderboard(p))
-      setIsLoading(false)
-    }, 600)
-  }, [])
+  const { data, isLoading, refetch } = useReadContract({
+    address: CONTRACT_ADDRESSES.leaderboard,
+    abi: LEADERBOARD_ABI,
+    functionName: 'topByWagered',
+    args: [BigInt(25)],
+  })
 
-  useEffect(() => {
-    loadData(period)
-  }, [period, loadData])
+  // Map the contract response to LeaderboardEntry[]
+  let entries: LeaderboardEntry[] = []
+
+  if (data) {
+    const [players, stats] = data as [readonly `0x${string}`[], readonly PlayerStats[]]
+
+    const mapped: LeaderboardEntry[] = []
+    for (let index = 0; index < players.length; index++) {
+      const playerAddress = players[index]
+      const s = stats[index]
+      if (!s || !playerAddress) continue
+
+      const totalWon = s.totalWon
+      const totalWagered = s.totalWagered
+      const pnl = totalWon > totalWagered
+        ? totalWon - totalWagered
+        : -(totalWagered - totalWon)
+      const gamesPlayed = Number(s.gamesPlayed)
+      const gamesWon = Number(s.gamesWon)
+      const winRate = gamesPlayed > 0 ? (gamesWon / gamesPlayed) * 100 : 0
+
+      mapped.push({
+        rank: index + 1,
+        address: playerAddress as string,
+        username: null,
+        totalWagered: s.totalWagered,
+        totalWon: s.totalWon,
+        totalLost: s.totalLost,
+        pnl,
+        gamesPlayed,
+        winRate,
+      })
+    }
+    entries = mapped
+      .sort((a, b) => {
+        if (b.totalWagered > a.totalWagered) return 1
+        if (b.totalWagered < a.totalWagered) return -1
+        return 0
+      })
+      .map((entry, i) => ({ ...entry, rank: i + 1 }))
+  }
 
   const refresh = useCallback(() => {
-    loadData(period)
-  }, [period, loadData])
+    refetch()
+  }, [refetch])
 
   const handleSetPeriod = useCallback((newPeriod: LeaderboardPeriod) => {
+    // The contract only supports all-time data.
+    // Period filtering is kept in the interface for future use,
+    // but always displays all-time data from the contract.
     setPeriod(newPeriod)
   }, [])
 

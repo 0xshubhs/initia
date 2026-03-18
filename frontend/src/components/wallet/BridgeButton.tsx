@@ -8,7 +8,7 @@ interface BridgeButtonProps {
 
 export default function BridgeButton({ variant = 'default' }: BridgeButtonProps) {
   const handleOpenBridge = () => {
-    window.open('https://bridge.testnet.initia.xyz', '_blank')
+    window.open('https://bridge.testnet.initia.xyz', '_blank', 'noopener,noreferrer')
   }
 
   if (variant === 'compact') {

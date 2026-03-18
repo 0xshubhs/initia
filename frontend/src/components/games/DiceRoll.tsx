@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAccount, useBalance } from 'wagmi'
 import { useGame } from '@/hooks/useGame'
 import BetInput from '@/components/shared/BetInput'
 import GameResult from '@/components/shared/GameResult'
@@ -16,6 +17,11 @@ export default function DiceRoll() {
   const [rollUnder, setRollUnder] = useState(true)
   const [showDiceResult, setShowDiceResult] = useState(false)
   const [diceValue, setDiceValue] = useState<number | null>(null)
+
+  const { address, isConnected } = useAccount()
+  const { data: balanceData } = useBalance({ address })
+
+  const walletBalance = balanceData?.value ?? BigInt(0)
 
   const { status, txState, txHash, lastResult, results, isPlaying, placeBet, reset } = useGame({
     gameType: 'diceroll',
@@ -34,15 +40,24 @@ export default function DiceRoll() {
     setShowDiceResult(false)
     setDiceValue(null)
 
-    const result = await placeBet({
-      amount: betAmount,
-      target,
-      rollUnder,
-    })
+    try {
+      const result = await placeBet({
+        amount: betAmount,
+        target,
+        rollUnder,
+      })
 
-    setDiceValue(parseInt(result.outcome))
-    setShowDiceResult(true)
+      const parsed = parseInt(result.outcome, 10)
+      if (!isNaN(parsed)) {
+        setDiceValue(parsed)
+        setShowDiceResult(true)
+      }
+    } catch {
+      // Error is handled by the useGame hook via txState
+    }
   }, [isPlaying, betAmount, target, rollUnder, placeBet])
+
+  const isApproving = status === 'approving'
 
   const ticks = useMemo(() => {
     const marks: number[] = []
@@ -209,34 +224,48 @@ export default function DiceRoll() {
               value={betAmount}
               onChange={setBetAmount}
               disabled={isPlaying}
-              maxBalance={BigInt('100000000000000000000')}
+              maxBalance={walletBalance}
             />
 
             <TxStatus state={txState} hash={txHash} />
 
-            <motion.button
-              whileHover={{ scale: !isPlaying ? 1.02 : 1 }}
-              whileTap={{ scale: !isPlaying ? 0.98 : 1 }}
-              onClick={handleRoll}
-              disabled={isPlaying}
-              className={cn(
-                'w-full py-4 rounded-xl font-mono text-lg font-bold transition-all duration-200',
-                !isPlaying
-                  ? 'bg-amber text-bg hover:bg-amber-light btn-glow cursor-pointer'
-                  : 'bg-border text-text-dim cursor-not-allowed',
-              )}
-            >
-              {isPlaying ? (
-                <motion.span
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                >
-                  ROLLING...
-                </motion.span>
-              ) : (
-                `ROLL ${rollUnder ? 'UNDER' : 'OVER'} ${target}`
-              )}
-            </motion.button>
+            {!isConnected ? (
+              <div className="w-full py-4 rounded-xl font-mono text-lg font-bold text-center
+                              bg-surface border-2 border-dashed border-amber-dim text-amber-dim">
+                Connect wallet to play
+              </div>
+            ) : (
+              <motion.button
+                whileHover={{ scale: !isPlaying ? 1.02 : 1 }}
+                whileTap={{ scale: !isPlaying ? 0.98 : 1 }}
+                onClick={handleRoll}
+                disabled={isPlaying}
+                className={cn(
+                  'w-full py-4 rounded-xl font-mono text-lg font-bold transition-all duration-200',
+                  !isPlaying
+                    ? 'bg-amber text-bg hover:bg-amber-light btn-glow cursor-pointer'
+                    : 'bg-border text-text-dim cursor-not-allowed',
+                )}
+              >
+                {isApproving ? (
+                  <motion.span
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    APPROVING...
+                  </motion.span>
+                ) : isPlaying ? (
+                  <motion.span
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    ROLLING...
+                  </motion.span>
+                ) : (
+                  `ROLL ${rollUnder ? 'UNDER' : 'OVER'} ${target}`
+                )}
+              </motion.button>
+            )}
           </div>
         </div>
 

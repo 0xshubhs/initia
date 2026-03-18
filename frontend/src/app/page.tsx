@@ -1,10 +1,11 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import StatCard from '@/components/shared/StatCard'
 
-const GAMES = [
+const GAMES_STATIC = [
   {
     path: '/coinflip',
     name: 'Coin Flip',
@@ -12,8 +13,6 @@ const GAMES = [
     icon: 'H|T',
     houseEdge: '2%',
     maxPayout: '1.96x',
-    liveBets: Math.floor(Math.random() * 200) + 50,
-    volume: `${(Math.random() * 500 + 100).toFixed(0)}`,
   },
   {
     path: '/dice',
@@ -22,8 +21,6 @@ const GAMES = [
     icon: 'D6',
     houseEdge: '1%',
     maxPayout: '99x',
-    liveBets: Math.floor(Math.random() * 150) + 30,
-    volume: `${(Math.random() * 300 + 80).toFixed(0)}`,
   },
   {
     path: '/crash',
@@ -32,8 +29,6 @@ const GAMES = [
     icon: '/\\',
     houseEdge: '3%',
     maxPayout: '1000x',
-    liveBets: Math.floor(Math.random() * 300) + 100,
-    volume: `${(Math.random() * 800 + 200).toFixed(0)}`,
   },
 ]
 
@@ -48,6 +43,21 @@ const itemVariants = {
 }
 
 export default function HomePage() {
+  const [liveData, setLiveData] = useState<{ liveBets: number; volume: string }[]>([])
+
+  useEffect(() => {
+    setLiveData(GAMES_STATIC.map(() => ({
+      liveBets: Math.floor(Math.random() * 200) + 50,
+      volume: `${(Math.random() * 500 + 100).toFixed(0)}`,
+    })))
+  }, [])
+
+  const GAMES = GAMES_STATIC.map((game, i) => ({
+    ...game,
+    liveBets: liveData[i]?.liveBets ?? '--',
+    volume: liveData[i]?.volume ?? '--',
+  }))
+
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-16">
       <motion.section variants={itemVariants} className="text-center py-12 sm:py-20">

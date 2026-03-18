@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import { useHouseVault } from '@/hooks/useHouseVault'
 import StatCard from '@/components/shared/StatCard'
-import { formatTokenAmount } from '@/lib/utils'
+import { formatTokenAmount, cn } from '@/lib/utils'
 import { useRef, useEffect, useCallback } from 'react'
 
 export default function VaultStats() {
@@ -27,21 +27,13 @@ export default function VaultStats() {
     ctx.fillStyle = '#111111'
     ctx.fillRect(0, 0, width, height)
 
-    const days = 30
-    const dataPoints: number[] = []
-    let cumulative = 0
-    for (let i = 0; i < days; i++) {
-      const daily = (Math.random() - 0.35) * 15
-      cumulative += daily
-      dataPoints.push(cumulative)
-    }
-
+    // With on-chain data, we only have current snapshot values.
+    // Draw a single-point indicator showing current net profit position.
+    const netProfitNum = Number(stats.netProfit) / 1e18
     const padding = 20
-    const maxVal = Math.max(...dataPoints, 0)
-    const minVal = Math.min(...dataPoints, 0)
-    const range = maxVal - minVal || 1
 
-    const zeroY = padding + ((maxVal) / range) * (height - padding * 2)
+    // Draw zero line
+    const zeroY = height / 2
     ctx.strokeStyle = 'rgba(34, 34, 34, 0.8)'
     ctx.lineWidth = 0.5
     ctx.setLineDash([4, 4])
@@ -51,40 +43,46 @@ export default function VaultStats() {
     ctx.stroke()
     ctx.setLineDash([])
 
-    ctx.beginPath()
-    ctx.strokeStyle = '#ffb000'
+    // Draw a horizontal bar representing net profit
+    const maxRange = Math.max(Math.abs(netProfitNum), 100)
+    const barHeight = 30
+    const barY = (height - barHeight) / 2
+    const barWidth = Math.min(Math.abs(netProfitNum / maxRange) * (width - padding * 2) * 0.8, width - padding * 2)
+    const isPositive = netProfitNum >= 0
+
+    ctx.fillStyle = isPositive ? 'rgba(0, 255, 65, 0.2)' : 'rgba(255, 0, 64, 0.2)'
+    ctx.strokeStyle = isPositive ? '#00ff41' : '#ff0040'
     ctx.lineWidth = 2
-    ctx.shadowColor = 'rgba(255, 176, 0, 0.3)'
+    ctx.shadowColor = isPositive ? 'rgba(0, 255, 65, 0.3)' : 'rgba(255, 0, 64, 0.3)'
     ctx.shadowBlur = 6
 
-    dataPoints.forEach((value, i) => {
-      const x = padding + ((width - padding * 2) * i) / (days - 1)
-      const y = padding + ((maxVal - value) / range) * (height - padding * 2)
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
-    })
-    ctx.stroke()
-
-    const lastIndex = dataPoints.length - 1
-    const lastX = padding + ((width - padding * 2) * lastIndex) / (days - 1)
-    ctx.lineTo(lastX, zeroY)
-    ctx.lineTo(padding, zeroY)
-    ctx.closePath()
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, 'rgba(255, 176, 0, 0.1)')
-    gradient.addColorStop(1, 'rgba(255, 176, 0, 0)')
-    ctx.fillStyle = gradient
-    ctx.fill()
+    const startX = width / 2
+    if (isPositive) {
+      ctx.fillRect(startX, barY, barWidth / 2, barHeight)
+      ctx.strokeRect(startX, barY, barWidth / 2, barHeight)
+    } else {
+      ctx.fillRect(startX - barWidth / 2, barY, barWidth / 2, barHeight)
+      ctx.strokeRect(startX - barWidth / 2, barY, barWidth / 2, barHeight)
+    }
     ctx.shadowBlur = 0
 
+    // Labels
     ctx.fillStyle = '#555555'
     ctx.font = '9px JetBrains Mono, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillText('Net P&L', width / 2, height - 6)
+
     ctx.textAlign = 'left'
-    ctx.fillText('30d ago', padding, height - 4)
+    ctx.fillText('Loss', padding, height - 6)
     ctx.textAlign = 'right'
-    ctx.fillText('Today', width - padding, height - 4)
-  }, [])
+    ctx.fillText('Profit', width - padding, height - 6)
+
+    // Show value
+    ctx.fillStyle = isPositive ? '#00ff41' : '#ff0040'
+    ctx.font = '11px JetBrains Mono, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillText(`${isPositive ? '+' : ''}${netProfitNum.toFixed(2)} INIT`, width / 2, barY - 8)
+  }, [stats.netProfit])
 
   useEffect(() => {
     drawProfitChart()
@@ -95,19 +93,23 @@ export default function VaultStats() {
     return () => resizeObserver.disconnect()
   }, [drawProfitChart])
 
+  const netProfitPositive = stats.netProfit >= BigInt(0)
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Total Value Locked" value={formatTokenAmount(stats.tvl)} suffix="INIT" variant="amber" size="lg" />
-        <StatCard label="Current APY" value={stats.apy.toFixed(2)} suffix="%" variant="green" size="lg" change={0.5} />
-        <StatCard label="Net Profit" value={formatTokenAmount(stats.netProfit)} suffix="INIT" variant={Number(stats.netProfit) >= 0 ? 'green' : 'red'} />
-        <StatCard label="Depositors" value={stats.totalDepositors.toString()} variant="default" />
+        <StatCard label="Current APY" value={stats.apy.toFixed(2)} suffix="%" variant="green" size="lg" />
+        <StatCard label="Net Profit" value={formatTokenAmount(stats.netProfit)} suffix="INIT" variant={netProfitPositive ? 'green' : 'red'} />
+        <StatCard label="Depositors" value="--" variant="default" />
       </div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card-glow bg-surface rounded-xl p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary">Vault Performance (30d)</h3>
-          <span className="text-xs text-green font-mono">+{formatTokenAmount(stats.netProfit)} INIT</span>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary">Vault P&L (On-Chain)</h3>
+          <span className={cn('text-xs font-mono', netProfitPositive ? 'text-green' : 'text-red')}>
+            {netProfitPositive ? '+' : ''}{formatTokenAmount(stats.netProfit)} INIT
+          </span>
         </div>
         <canvas ref={canvasRef} className="w-full h-[200px] rounded-lg" />
       </motion.div>
@@ -132,7 +134,9 @@ export default function VaultStats() {
             </div>
             <div className="border-t border-border pt-2 flex items-center justify-between">
               <span className="text-xs text-text font-semibold">Net</span>
-              <span className="text-xs text-green font-mono font-semibold">+{formatTokenAmount(stats.netProfit)} INIT</span>
+              <span className={cn('text-xs font-mono font-semibold', netProfitPositive ? 'text-green' : 'text-red')}>
+                {netProfitPositive ? '+' : ''}{formatTokenAmount(stats.netProfit)} INIT
+              </span>
             </div>
           </div>
         </div>

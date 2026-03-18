@@ -38,6 +38,7 @@ export default function BetInput({ value, onChange, disabled = false, maxBalance
 
   const handleBlur = useCallback(() => {
     let clamped = value
+    if (clamped <= BigInt(0)) clamped = MIN_BET
     if (clamped < MIN_BET) clamped = MIN_BET
     if (clamped > MAX_BET) clamped = MAX_BET
     if (maxBalance && clamped > maxBalance) clamped = maxBalance
@@ -75,6 +76,7 @@ export default function BetInput({ value, onChange, disabled = false, maxBalance
           onChange={handleInputChange}
           onBlur={handleBlur}
           disabled={disabled}
+          aria-label="Bet amount in INIT"
           className="w-full bg-bg border border-border rounded-lg px-4 py-3 font-mono text-lg
                      text-text placeholder-text-dim
                      disabled:opacity-50 disabled:cursor-not-allowed
@@ -90,6 +92,7 @@ export default function BetInput({ value, onChange, disabled = false, maxBalance
         <button
           onClick={handleHalf}
           disabled={disabled}
+          aria-label="Halve bet amount"
           className="flex-1 px-3 py-1.5 text-xs font-medium rounded-md
                      bg-surface border border-border text-text-secondary
                      hover:border-amber-dim hover:text-amber
@@ -101,6 +104,7 @@ export default function BetInput({ value, onChange, disabled = false, maxBalance
         <button
           onClick={() => handleMultiplier(2)}
           disabled={disabled}
+          aria-label="Double bet amount"
           className="flex-1 px-3 py-1.5 text-xs font-medium rounded-md
                      bg-surface border border-border text-text-secondary
                      hover:border-amber-dim hover:text-amber
@@ -112,6 +116,7 @@ export default function BetInput({ value, onChange, disabled = false, maxBalance
         <button
           onClick={() => handleMultiplier(5)}
           disabled={disabled}
+          aria-label="Multiply bet by 5"
           className="flex-1 px-3 py-1.5 text-xs font-medium rounded-md
                      bg-surface border border-border text-text-secondary
                      hover:border-amber-dim hover:text-amber
@@ -123,6 +128,7 @@ export default function BetInput({ value, onChange, disabled = false, maxBalance
         <button
           onClick={() => handleMultiplier(-1)}
           disabled={disabled}
+          aria-label="Set bet to maximum"
           className="flex-1 px-3 py-1.5 text-xs font-medium rounded-md
                      bg-surface border border-border text-amber-dim
                      hover:border-amber hover:text-amber

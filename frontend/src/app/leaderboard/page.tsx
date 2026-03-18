@@ -23,7 +23,7 @@ export default function LeaderboardPage() {
           </h1>
           <p className="text-sm text-text-secondary font-mono">Top players by profit & loss. Climb the ranks.</p>
         </div>
-        <button onClick={refresh} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface border border-border text-text-secondary hover:border-amber-dim hover:text-amber transition-all duration-200 text-sm font-mono self-start">
+        <button onClick={refresh} aria-label="Refresh leaderboard" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface border border-border text-text-secondary hover:border-amber-dim hover:text-amber transition-all duration-200 text-sm font-mono self-start">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
@@ -31,9 +31,9 @@ export default function LeaderboardPage() {
         </button>
       </div>
 
-      <div className="flex rounded-lg bg-surface border border-border overflow-hidden w-fit">
+      <div className="flex rounded-lg bg-surface border border-border overflow-hidden w-fit" role="tablist" aria-label="Leaderboard time period">
         {(Object.keys(PERIOD_LABELS) as LeaderboardPeriod[]).map(p => (
-          <button key={p} onClick={() => setPeriod(p)} className={cn('px-5 py-2.5 text-sm font-mono font-semibold transition-all duration-200', period === p ? 'bg-amber/10 text-amber border-b-2 border-amber' : 'text-text-secondary hover:text-text')}>
+          <button key={p} role="tab" aria-selected={period === p} onClick={() => setPeriod(p)} className={cn('px-5 py-2.5 text-sm font-mono font-semibold transition-all duration-200', period === p ? 'bg-amber/10 text-amber border-b-2 border-amber' : 'text-text-secondary hover:text-text')}>
             {PERIOD_LABELS[p]}
           </button>
         ))}
@@ -57,6 +57,11 @@ export default function LeaderboardPage() {
         ) : (
           <AnimatePresence mode="wait">
             <motion.div key={period} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              {entries.length === 0 && (
+                <div className="py-12 text-center">
+                  <p className="text-text-dim font-mono text-sm">No leaderboard data yet. Play some games!</p>
+                </div>
+              )}
               {entries.map((entry, i) => {
                 const isPositive = entry.pnl >= BigInt(0)
                 const isTop3 = i < 3

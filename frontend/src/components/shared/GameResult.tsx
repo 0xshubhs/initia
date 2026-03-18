@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatTokenAmount } from '@/lib/utils'
 import type { GameStatus } from '@/types'
@@ -16,19 +16,23 @@ interface GameResultProps {
 
 export default function GameResult({ status, won, payout, betAmount, outcome, onDismiss }: GameResultProps) {
   const [show, setShow] = useState(false)
+  const onDismissRef = useRef(onDismiss)
+  onDismissRef.current = onDismiss
+
+  const handleDismiss = useCallback(() => {
+    setShow(false)
+    onDismissRef.current?.()
+  }, [])
 
   useEffect(() => {
     if (status === 'won' || status === 'lost') {
       setShow(true)
-      const timeout = setTimeout(() => {
-        setShow(false)
-        onDismiss?.()
-      }, 4000)
+      const timeout = setTimeout(handleDismiss, 4000)
       return () => clearTimeout(timeout)
     } else {
       setShow(false)
     }
-  }, [status, onDismiss])
+  }, [status, handleDismiss])
 
   const profit = won ? payout - betAmount : betAmount
 
@@ -48,10 +52,7 @@ export default function GameResult({ status, won, payout, betAmount, outcome, on
                 ? 'bg-green/5 border-green shadow-[0_0_60px_rgba(0,255,65,0.15)]'
                 : 'bg-red/5 border-red shadow-[0_0_60px_rgba(255,0,64,0.15)]'
               }`}
-            onClick={() => {
-              setShow(false)
-              onDismiss?.()
-            }}
+            onClick={handleDismiss}
           >
             <motion.div
               initial={{ scale: 0 }}

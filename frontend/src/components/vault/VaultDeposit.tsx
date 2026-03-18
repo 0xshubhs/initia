@@ -2,20 +2,39 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { useAccount, useBalance } from 'wagmi'
 import { useHouseVault } from '@/hooks/useHouseVault'
 import BetInput from '@/components/shared/BetInput'
 import TxStatus from '@/components/shared/TxStatus'
 import { DEFAULT_BET } from '@/lib/constants'
 import { formatTokenAmount, cn } from '@/lib/utils'
 
+const LARGE_AMOUNT_THRESHOLD = BigInt('10000000000000000000') // 10 INIT
+
 type Tab = 'deposit' | 'withdraw'
 
 export default function VaultDeposit() {
   const [tab, setTab] = useState<Tab>('deposit')
   const [amount, setAmount] = useState(DEFAULT_BET)
+
+  const { address, isConnected } = useAccount()
+  const { data: balanceData } = useBalance({ address })
   const { stats, txState, txHash, deposit, withdraw } = useHouseVault()
 
+  const walletBalance = balanceData?.value ?? BigInt(0)
+
   const handleAction = async () => {
+    if (amount <= BigInt(0)) return
+
+    // Confirm large deposits/withdrawals
+    if (amount >= LARGE_AMOUNT_THRESHOLD) {
+      const action = tab === 'deposit' ? 'deposit' : 'withdraw'
+      const confirmed = window.confirm(
+        `You are about to ${action} ${formatTokenAmount(amount)} INIT. Are you sure?`
+      )
+      if (!confirmed) return
+    }
+
     if (tab === 'deposit') {
       await deposit(amount)
     } else {
@@ -25,10 +44,12 @@ export default function VaultDeposit() {
 
   return (
     <div className="card-glow bg-surface rounded-xl p-6 space-y-5">
-      <div className="flex rounded-lg bg-bg border border-border overflow-hidden">
+      <div className="flex rounded-lg bg-bg border border-border overflow-hidden" role="tablist" aria-label="Vault actions">
         {(['deposit', 'withdraw'] as Tab[]).map(t => (
           <button
             key={t}
+            role="tab"
+            aria-selected={tab === t}
             onClick={() => setTab(t)}
             className={cn(
               'flex-1 py-3 text-sm font-mono font-semibold uppercase tracking-wider transition-all duration-200',
@@ -46,7 +67,7 @@ export default function VaultDeposit() {
         value={amount}
         onChange={setAmount}
         disabled={txState === 'pending' || txState === 'confirming'}
-        maxBalance={tab === 'withdraw' ? stats.userDeposit : undefined}
+        maxBalance={tab === 'withdraw' ? stats.userDeposit : walletBalance}
       />
 
       {tab === 'deposit' ? (
@@ -88,33 +109,40 @@ export default function VaultDeposit() {
 
       <TxStatus state={txState} hash={txHash} />
 
-      <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={handleAction}
-        disabled={txState === 'pending' || txState === 'confirming' || amount === BigInt(0)}
-        className={cn(
-          'w-full py-4 rounded-xl font-mono text-lg font-bold transition-all duration-200',
-          txState !== 'pending' && txState !== 'confirming' && amount > BigInt(0)
-            ? tab === 'deposit'
-              ? 'bg-amber text-bg hover:bg-amber-light btn-glow cursor-pointer'
-              : 'bg-red/80 text-white hover:bg-red cursor-pointer'
-            : 'bg-border text-text-dim cursor-not-allowed',
-        )}
-      >
-        {txState === 'pending' || txState === 'confirming' ? (
-          <motion.span
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ duration: 1, repeat: Infinity }}
-          >
-            Processing...
-          </motion.span>
-        ) : tab === 'deposit' ? (
-          'DEPOSIT TO VAULT'
-        ) : (
-          'WITHDRAW FROM VAULT'
-        )}
-      </motion.button>
+      {!isConnected ? (
+        <div className="w-full py-4 rounded-xl font-mono text-lg font-bold text-center
+                        bg-surface border-2 border-dashed border-amber-dim text-amber-dim">
+          Connect wallet to continue
+        </div>
+      ) : (
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleAction}
+          disabled={txState === 'pending' || txState === 'confirming' || amount === BigInt(0)}
+          className={cn(
+            'w-full py-4 rounded-xl font-mono text-lg font-bold transition-all duration-200',
+            txState !== 'pending' && txState !== 'confirming' && amount > BigInt(0)
+              ? tab === 'deposit'
+                ? 'bg-amber text-bg hover:bg-amber-light btn-glow cursor-pointer'
+                : 'bg-red/80 text-white hover:bg-red cursor-pointer'
+              : 'bg-border text-text-dim cursor-not-allowed',
+          )}
+        >
+          {txState === 'pending' || txState === 'confirming' ? (
+            <motion.span
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            >
+              Processing...
+            </motion.span>
+          ) : tab === 'deposit' ? (
+            'DEPOSIT TO VAULT'
+          ) : (
+            'WITHDRAW FROM VAULT'
+          )}
+        </motion.button>
+      )}
 
       <div className="bg-amber/5 border border-amber/10 rounded-lg p-3">
         <p className="text-[10px] text-amber-dim leading-relaxed">

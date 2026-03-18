@@ -4,7 +4,7 @@
 
 export type GameType = 'coinflip' | 'diceroll' | 'crash'
 
-export type GameStatus = 'idle' | 'betting' | 'pending' | 'revealing' | 'won' | 'lost'
+export type GameStatus = 'idle' | 'approving' | 'betting' | 'pending' | 'revealing' | 'won' | 'lost'
 
 export interface GameResult {
   id: string
